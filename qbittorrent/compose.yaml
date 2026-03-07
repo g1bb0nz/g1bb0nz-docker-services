@@ -1,0 +1,24 @@
+include: [path: ../compose.yaml]
+services:
+  qbittorrent:
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.qbittorrent.middlewares: compress-response@file
+      traefik.http.routers.qbittorrent.tls: 'true'
+      traefik.http.services.qbittorrent.loadbalancer.server.port: '8080'
+    extends: { file: ../service-templates.yaml, service: custom-io }
+    image: lscr.io/linuxserver/qbittorrent:latest
+    volumes:
+      - { type: volume, source: qbittorrent_config, target: /config }
+    environment:
+      # Locale
+      LC_ALL: en_US.UTF-8
+      # Ports
+      WEBUI_PORT: '8080'
+      # Docker Mods
+      DOCKER_MODS: linuxserver/mods:universal-stdout-logs
+      LOGS_TO_STDOUT: /config/qBittorrent/logs/qbittorrent.log
+    hostname: qbittorrent
+    healthcheck: { test: 'curl --silent --fail --output /dev/null --write-out "%{http_code}%{onerror} %{errormsg}" --head http://localhost:8080 || exit 1' }
+volumes:
+  qbittorrent_config: { }

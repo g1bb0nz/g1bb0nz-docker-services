@@ -1,0 +1,10 @@
+services:
+  sonarr:
+    # For initial configuration and debugging:
+    labels: { traefik.enable: 'false' }
+    # For initial configuration and debugging:
+    ports: [{ name: web, app_protocol: http, target: 8989 }]
+    ### You MUST bind paths from the host as download locations and media libraries (same source and target preferred)! ###
+    #volumes: [{ type: bind, source: /srv, target: /srv }]
+    # For initial configuration and debugging:
+    environment: { SONARR__AUTH__METHOD: !reset null }

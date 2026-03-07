@@ -1,0 +1,17 @@
+services:
+  qbittorrent:
+    labels:
+      # For initial configuration and debugging:
+      traefik.enable: 'false'
+      # Alternative external address:
+      traefik.http.routers.qbittorrent.rule: Host(`torrent.${HOST_FQDN:?}`)
+    ports:
+      # For initial configuration and debugging:
+      - { name: web, app_protocol: http, published: 8080, target: 8080 }
+      ### You MUST set an external port for torrenting! ###
+      - { name: torrent, published: &torrent-port 49152, target: *torrent-port }
+      - { name: torrent, published: *torrent-port, target: *torrent-port, protocol: udp }
+    ### You MUST bind paths from the host as download locations (same source and target preferred)! ###
+    #volumes: [{ type: bind, source: /srv/downloads, target: /srv/downloads }]
+    ### You MUST set an external port for torrenting! ###
+    environment: { TORRENTING_PORT: *torrent-port }

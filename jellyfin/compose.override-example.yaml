@@ -1,0 +1,13 @@
+services:
+  jellyfin:
+    labels:
+      # For initial configuration and debugging:
+      traefik.enable: 'false'
+      # Alternative external address:
+      traefik.http.routers.jellyfin.rule: Host(`media.${HOST_FQDN:?}`)
+    # For initial configuration and debugging:
+    ports: [{ name: web, app_protocol: http, target: 8096 }]
+    ### You MUST bind paths from the host as media libraries (same source and target preferred)! ###
+    #volumes: [{ type: bind, source: /srv, target: /srv }]
+    # Alternative external address:
+    environment: { JELLYFIN_PublishedServerUrl: 'https://media.${HOST_FQDN:?}' }

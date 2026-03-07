@@ -1,0 +1,77 @@
+services:
+  traefik:
+    ### You MUST set a tag more precise than 'latest' as breaking changes may be introduced when upgrading between versions! ###
+    #image: traefik:<major.minor version>
+    # PostgreSQL integration:
+    #ports:
+      #- { name: postgresqlsecure, app_protocol: postgresql, published: 5432, target: 5432 }
+    # Persistent storage for ACME:
+    volumes:
+      - { type: volume, source: traefik_acme, target: /etc/traefik/acme }
+    configs:
+      ### You SHOULD use "00-tls13-strict-sni" or "00-tls13"! ###
+      - { source: traefik_routing-conf-00-tls13, target: /etc/traefik/routing.d/00-tls13.yaml }
+      - { source: traefik_routing-conf-10-custom, target: /etc/traefik/routing.d/10-custom.yaml }
+    # LEGO Duck DNS integration:
+    #secrets:
+      #- { source: duckdns-token }
+    environment:
+      TRAEFIK_API_DISABLEDASHBOARDAD: 'true'
+      TRAEFIK_API_INSECURE: 'true'
+      # Let's Encrypt integration:
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_CASERVER: https://acme-staging-v02.api.letsencrypt.org/directory
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_DISABLECOMMONNAME: 'true'
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL: 
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_KEYTYPE: EC256
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_PROFILE: tlsserver
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_STORAGE: /etc/traefik/acme/letsencrypt.json
+      # Let's Encrypt DNS-01 challenge with Duck DNS:
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_DNSCHALLENGE_PROPAGATION_DISABLECHECKS: 'true'
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_DNSCHALLENGE_PROVIDER: duckdns
+      #TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_DNSCHALLENGE_RESOLVERS: '[2001:4860:4860::8888]:53, [2001:4860:4860::8844]:53, 8.8.8.8:53, 8.8.4.4:53'
+      TRAEFIK_ENTRYPOINTS_POSTGRESQLSECURE_ADDRESS: :5432
+      # LEGO Duck DNS integration:
+      #DUCKDNS_TOKEN_FILE: /run/secrets/duckdns-token
+      #DUCKDNS_PROPAGATION_TIMEOUT: 120
+      #DUCKDNS_SEQUENCE_INTERVAL: 120
+  traefik_docker-socket-proxy:
+    ### You MUST run it as non-root, use host's docker group id! ###
+    #user: 65534:<docker group id>
+volumes:
+  traefik_acme: { }
+configs:
+  traefik_routing-conf-10-custom:
+    content: |
+      http:
+        routers:
+          api:
+            ### You SHOULD use "allow-only-from-lan@file" middleware or configure authentication! ###
+            middlewares: [compress-response@file]
+            service: api@internal
+            rule: Host(`${HOST_FQDN:?}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+            tls: { }
+          default-https:
+            middlewares: [redirect-to-main@file]
+            service: noop@internal
+            rule: Host(`${HOST_FQDN:?}`) || HostRegexp(`^.+\\.${HOST_FQDN:?}$`)
+            priority: 2
+            tls: { }
+        middlewares:
+          redirect-to-main:
+            redirectRegex:
+              regex: ^https://.+\\.${HOST_FQDN:?}(?:$|/.*$)
+              replacement: https://${HOST_FQDN:?}
+          ### You MUST use your actual LAN IP addresses! ###
+          allow-only-from-lan: &allow-only-from-lan { ipAllowList: { sourceRange: [192.168.1.0/24] } }
+      tcp:
+        middlewares:
+          allow-only-from-lan: *allow-only-from-lan
+      # Use ACME to generate certificate with "defaultGeneratedCert" or use your own certificate with "defaultCertificate":
+      #tls:
+        #stores:
+          #default:
+            #defaultGeneratedCert: { resolver: letsencrypt, domain: { main: '${HOST_FQDN:?}', sans: ['*.${HOST_FQDN:?}'] } }
+            #defaultCertificate: { certFile: /run/secrets/<certificate>.crt, keyFile: /run/secrets/<private key>.key }
+# LEGO Duck DNS integration:
+#secrets:
+  #duckdns-token: { file: ./.secrets/duckdns-token }

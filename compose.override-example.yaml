@@ -1,0 +1,11 @@
+#include:
+  #- path: [./traefik/compose.yaml, ./traefik/compose.override.yaml]
+  #- path: [./postgres/compose.yaml, ./postgres/compose.override.yaml]
+  #- path: [./jellyfin/compose.yaml, ./jellyfin/compose.override.yaml]
+  #- path: [./qbittorrent/compose.yaml, ./qbittorrent/compose.override.yaml]
+  #- path: [./prowlarr/compose.yaml, ./prowlarr/compose.override.yaml]
+  #- path: [./sonarr/compose.yaml, ./sonarr/compose.override.yaml]
+  #- path: [./recyclarr/compose.yaml, ./recyclarr/compose.override.yaml]
+#services:
+  #prowlarr: { depends_on: { postgres: { condition: service_healthy } } }
+  #sonarr: { depends_on: { postgres: { condition: service_healthy } } }

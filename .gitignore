@@ -1,0 +1,7 @@
+/.secrets/**
+!/.secrets/.placeholder
+
+# Docker Compose
+/.env
+/container.default.env
+compose.override.yaml

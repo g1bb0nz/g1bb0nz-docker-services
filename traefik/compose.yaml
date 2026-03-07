@@ -1,0 +1,150 @@
+include: [path: ../compose.yaml]
+services:
+  traefik:
+    extends: { file: ../service-templates.yaml, service: default }
+    image: traefik:latest
+    depends_on:
+      traefik_docker-socket-proxy: { condition: service_started }
+    ports:
+      - { name: web, app_protocol: http, published: 80, target: 80 }
+      - { name: websecure, app_protocol: https, published: 443, target: 443 }
+      - { name: websecure, app_protocol: https, published: 443, target: 443, protocol: udp }
+    networks:
+      default: { aliases: [reverse-proxy] }
+      traefik: { }
+    configs:
+      - { source: traefik_routing-conf-00-default, target: /etc/traefik/routing.d/00-default.yaml }
+    environment:
+      # Traefik Install Configuration
+      TRAEFIK_ACCESSLOG_FIELDS_NAMES_STARTUTC: drop
+      TRAEFIK_ENTRYPOINTS_WEB_ADDRESS: :80
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_ADDRESS: :443
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_ASDEFAULT: 'true'
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP_MIDDLEWARES: detect-content-type@file, security-headers@file
+      TRAEFIK_ENTRYPOINTS_WEBSECURE_HTTP3: 'true'
+      TRAEFIK_GLOBAL_CHECKNEWVERSION: 'false'
+      TRAEFIK_LOG_LEVEL: DEBUG # INFO
+      TRAEFIK_PING: 'true'
+      TRAEFIK_PROVIDERS_DOCKER_ALLOWEMPTYSERVICES: 'true'
+      TRAEFIK_PROVIDERS_DOCKER_DEFAULTRULE: Host(`{{ index .Labels "com.docker.compose.service" }}.${HOST_FQDN:?}`)
+      TRAEFIK_PROVIDERS_DOCKER_ENDPOINT: tcp://docker:2375
+      TRAEFIK_PROVIDERS_DOCKER_EXPOSEDBYDEFAULT: 'false'
+      TRAEFIK_PROVIDERS_DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME:?}_default
+      TRAEFIK_PROVIDERS_FILE_DIRECTORY: /etc/traefik/routing.d
+      TRAEFIK_PROVIDERS_FILE_WATCH: 'false'
+    hostname: traefik
+    healthcheck: { test: ["CMD", "traefik", "healthcheck"] }
+  traefik_docker-socket-proxy:
+    extends: { file: ../service-templates.yaml, service: default }
+    image: wollomatic/socket-proxy:1
+    cap_drop: [ALL]
+    deploy: { resources: { limits: { memory: 64mb } } }
+    read_only: true
+    networks:
+      traefik: { aliases: [docker] }
+    volumes:
+      - { type: bind, source: /var/run/docker.sock, target: /var/run/docker.sock, read_only: true, bind: { create_host_path: false } }
+    environment:
+      SP_WATCHDOGINTERVAL: 3600
+      SP_STOPONWATCHDOG: 'true'
+      SP_LISTENIP: 0.0.0.0
+      SP_ALLOWHEALTHCHECK: 'true'
+      SP_ALLOWFROM: traefik
+      SP_ALLOW_HEAD: /(v1\.\d{1,2}/)?(_ping)
+      SP_ALLOW_GET: /v1\.\d{1,2}/(_ping|version|events.*|containers/.*)
+    hostname: docker-socket-proxy
+    healthcheck: { test: ["CMD", "./healthcheck"] }
+networks:
+  traefik: { enable_ipv6: true }
+configs:
+  traefik_routing-conf-00-default:
+    content: |
+      http:
+        routers:
+          default-http:
+            entryPoints: [web]
+            middlewares: [redirect-to-https]
+            service: noop@internal
+            rule: PathPrefix(`/`)
+            priority: 1
+        middlewares:
+          compress-response:
+            compress:
+              includedContentTypes:
+                # https://developers.cloudflare.com/speed/optimization/content/compression
+                - text/html
+                - text/richtext
+                - text/plain
+                - text/css
+                - text/x-script
+                - text/x-component
+                - text/x-java-source
+                - text/x-markdown
+                - application/javascript
+                - application/x-javascript
+                - text/javascript
+                - text/js
+                - image/x-icon
+                - image/vnd.microsoft.icon
+                - application/x-perl
+                - application/x-httpd-cgi
+                - text/xml
+                - application/xml
+                - application/rss+xml
+                - application/vnd.api+json
+                - application/x-protobuf
+                - application/json
+                - multipart/bag
+                - multipart/mixed
+                - application/xhtml+xml
+                - font/ttf
+                - font/otf
+                - font/x-woff
+                - image/svg+xml
+                - application/vnd.ms-fontobject
+                - application/ttf
+                - application/x-ttf
+                - application/otf
+                - application/x-otf
+                - application/truetype
+                - application/opentype
+                - application/x-opentype
+                - application/font-woff
+                - application/eot
+                - application/font
+                - application/font-sfnt
+                - application/wasm
+                - application/javascript-binast
+                - application/manifest+json
+                - application/ld+json
+                - application/graphql+json
+                - application/geo+json
+              defaultEncoding: br
+          detect-content-type: { contentType: { } }
+          redirect-to-https: { redirectScheme: { scheme: https, permanent: true } }
+          security-headers:
+            headers:
+              customResponseHeaders: { X-Robots-Tag: none }
+              contentTypeNosniff: 'true'
+              referrerPolicy: strict-origin-when-cross-origin
+      tls:
+        options:
+          postgresql: { minVersion: VersionTLS13, sniStrict: true, alpnProtocols: [postgresql] }
+          tls12:
+            minVersion: VersionTLS12
+            cipherSuites:
+              # https://developers.cloudflare.com/ssl/edge-certificates/additional-options/cipher-suites/recommendations
+              - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+              - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+              - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+              - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+              - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+              - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+            sniStrict: true
+            alpnProtocols: [h2, http/1.1]
+  traefik_routing-conf-00-tls13-sni-strict:
+    content: |
+      tls: { options: { default: { minVersion: VersionTLS13, sniStrict: true, alpnProtocols: [h2, http/1.1] } } }
+  traefik_routing-conf-00-tls13:
+    content: |
+      tls: { options: { default: { minVersion: VersionTLS13, alpnProtocols: [h2, http/1.1] } } }

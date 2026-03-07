@@ -1,0 +1,8 @@
+services:
+  prowlarr:
+    # For initial configuration and debugging:
+    labels: { traefik.enable: 'false' }
+    # For initial configuration and debugging:
+    ports: [{ name: web, app_protocol: http, target: 9696 }]
+    # For initial configuration and debugging:
+    environment: { PROWLARR__AUTH__METHOD: !reset null }

@@ -1,0 +1,9 @@
+# Documentation
+*.md            eol=lf
+
+# Docker Compose
+*.env           eol=lf
+*.yaml          eol=lf
+
+# Git
+.git*           eol=lf

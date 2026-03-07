@@ -1,0 +1,33 @@
+services:
+  postgres:
+    labels:
+      # For initial configuration and debugging:
+      traefik.enable: 'false'
+      traefik.tcp.routers.postgres.middlewares: allow-only-from-lan@file
+    ### You MUST set a tag more precise than 'latest' as database migration is needed when upgrading between major versions! ###
+    #image: postgres:<major.minor|major version>
+    # For initial configuration and debugging:
+    ports: [{ name: postgresql, app_protocol: postgresql, target: 5432 }]
+    configs:
+      - { source: postgres_conf-10-custom, target: /etc/postgresql/postgresql.conf.d/10-custom.conf, uid: '999', gid: '999' }
+      - { source: postgres_initdb-20-services, target: /docker-entrypoint-initdb.d/20-services.sh, uid: '999', gid: '999' }
+    # Database passwords for creating service users and their databases:
+    #secrets:
+      #- { source: prowlarr_database-password }
+      #- { source: sonarr_database-password }
+configs:
+  postgres_conf-10-custom:
+    content: |
+      # Resource usage
+      ## Memory
+      shared_buffers = 1GB
+  # (optional) Create service users and their databases during initdb:
+  postgres_initdb-20-services:
+    content: |
+      # shellcheck shell=bash
+      #create-user-with-database prowlarr
+      #create-user-with-database sonarr
+# Database passwords for creating service users and their databases during initdb:
+#secrets:
+  #prowlarr_database-password: { file: ../.secrets/prowlarr_database-password }
+  #sonarr_database-password: { file: ../.secrets/sonarr_database-password }

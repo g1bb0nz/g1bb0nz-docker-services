@@ -1,0 +1,2 @@
+networks:
+  default: { enable_ipv6: true }

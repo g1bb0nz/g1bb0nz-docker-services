@@ -1,0 +1,11 @@
+include: [path: ../compose.yaml]
+services:
+  recyclarr:
+    extends: { file: ../service-templates.yaml, service: default }
+    image: recyclarr/recyclarr:8
+    group_add: ['${HOST_GID:?}']
+    volumes:
+      - { type: volume, source: recyclarr_config, target: /config }
+    hostname: recyclarr
+volumes:
+  recyclarr_config: { }

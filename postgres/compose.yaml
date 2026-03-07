@@ -1,0 +1,110 @@
+include: [path: ../compose.yaml]
+services:
+  postgres:
+    labels:
+      traefik.enable: 'true'
+      traefik.tcp.routers.postgres.entrypoints: postgresqlsecure
+      traefik.tcp.routers.postgres.rule: HostSNI(`postgres.${HOST_FQDN:?}`)
+      traefik.tcp.routers.postgres.tls.options: postgresql@file
+      traefik.tcp.services.postgres.loadbalancer.server.port: '5432'
+    extends: { file: ../service-templates.yaml, service: default }
+    image: postgres:latest
+    shm_size: 256m
+    volumes:
+      - { type: volume, source: postgres_data, target: /var/lib/postgresql }
+    configs:
+      - { source: postgres_conf-default, target: /etc/postgresql/postgresql.conf, uid: &UID '999', gid: &GID '999' }
+      - { source: postgres_drop-in-placeholder, target: /etc/postgresql/postgresql.conf.d/.placeholder, uid: *UID, gid: *GID }
+      - { source: postgres_hba-default, target: /etc/postgresql/pg_hba.conf, uid: *UID, gid: *GID }
+      - { source: postgres_drop-in-placeholder, target: /etc/postgresql/pg_hba.conf.d/.placeholder, uid: *UID, gid: *GID }
+      - { source: postgres_ident-default, target: /etc/postgresql/pg_ident.conf, uid: *UID, gid: *GID }
+      - { source: postgres_drop-in-placeholder, target: /etc/postgresql/pg_ident.conf.d/.placeholder, uid: *UID, gid: *GID }
+      - { source: postgres_initdb-00-default, target: /docker-entrypoint-initdb.d/00-default.sql, uid: *UID, gid: *GID }
+      - { source: postgres_script-create-user-with-database, target: /usr/local/bin/create-user-with-database, uid: *UID, gid: *GID, mode: 0755 }
+    secrets:
+      - { source: postgres_superuser-password, target: superuser-password }
+    environment:
+      # initdb
+      POSTGRES_PASSWORD_FILE: /run/secrets/superuser-password
+      POSTGRES_INITDB_ARGS: >-
+        --auth=scram-sha-256
+        --no-instructions
+      # psql
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PSQL_HISTORY: /dev/null
+    hostname: postgres
+    command: ["bash", "-c", "ln --force --symbolic \"$${PGDATA}/postgresql.conf\" /etc/postgresql/postgresql.initdb.conf; exec docker-entrypoint.sh -c config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck: { test: 'psql --no-readline --quiet --output=/dev/null --username=healthcheck --no-password --no-psqlrc --command="select 1" || exit 1' }
+volumes:
+  postgres_data: { }
+configs:
+  postgres_conf-default:
+    content: |
+      include '/etc/postgresql/postgresql.initdb.conf'
+      # File locations
+      hba_file = '/etc/postgresql/pg_hba.conf'
+      ident_file = '/etc/postgresql/pg_ident.conf'
+      # Connections and authentication
+      ## Connection Settings
+      reserved_connections = 4
+      unix_socket_permissions = 0700
+      # Resource usage
+      ## Memory
+      shared_buffers = 128MB
+      # Replication
+      ## Sending Servers
+      max_wal_senders = 0
+      # Reporting and logging
+      ## What to Log
+      log_line_prefix = '%m (%p) %q[%u@%a/%d] '
+      # Vacuuming
+      ## Cost-Based Vacuum Delay
+      vacuum_cost_delay = 1
+      # Config file includes
+      include_dir '/etc/postgresql/postgresql.conf.d'
+  postgres_hba-default:
+    content: |
+      # Type          Database        User                    Address                        Method
+      local           postgres        healthcheck                                            trust
+      local           all             postgres                                               scram-sha-256
+      hostnossl       postgres        postgres                samenet                        scram-sha-256
+      host            all             postgres,healthcheck    all                            reject
+      # HBA File Includes
+      include_dir /etc/postgresql/pg_hba.conf.d
+      # Type          Database        User                    Address                        Method
+      host            postgres        all                     all                            reject
+      hostnossl       all             all                     samenet                        scram-sha-256
+  postgres_ident-default:
+    content: |
+      # Ident File Includes
+      include_dir /etc/postgresql/pg_ident.conf.d
+  postgres_drop-in-placeholder: { content: '#' }
+  postgres_initdb-00-default:
+    content: |
+      create user healthcheck with noinherit;
+      grant connect on database postgres to healthcheck;
+  postgres_script-create-user-with-database:
+    content: |
+      #!/usr/bin/env bash
+      set \
+         -o errexit \
+         -o errtrace \
+         -o nounset \
+         -o pipefail \
+      ;
+      user="$${1:?}"
+      userPasswordFile="/run/secrets/$${user}_database-password"
+      database="$${2:-$${user}}"
+      [[ -s "$${userPasswordFile}" ]]
+      # shellcheck disable=SC2006,SC2312
+      psql --set=ON_ERROR_STOP=1 --file=- postgres postgres <<-ENDOFFILE
+      	\set password `cat "$${userPasswordFile}"`
+      	create user $${user} with
+      	  noinherit
+      	  password :'password'
+      	;
+      	create database $${database} with owner $${user};
+      ENDOFFILE
+secrets:
+  postgres_superuser-password: { file: ../.secrets/postgres_superuser-password }

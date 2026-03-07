@@ -1,0 +1,12 @@
+services:
+  default:
+    env_file:
+      - ./container.default.env
+    logging: { driver: local }
+    healthcheck: { interval: 1m, timeout: 5s, retries: 2, start_period: 15s, start_interval: 5s }
+    stop_grace_period: 1m
+    restart: unless-stopped
+  custom-io:
+    extends: { service: default }
+    env_file:
+      - ./container.custom-io.env
