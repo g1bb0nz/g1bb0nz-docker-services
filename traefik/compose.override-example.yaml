@@ -9,7 +9,7 @@ services:
     volumes:
       - { type: volume, source: traefik_acme, target: /etc/traefik/acme }
     configs:
-      ### You SHOULD use "00-tls13-strict-sni" or "00-tls13"! ###
+      ### You SHOULD use certificates resolver or your own certificates with "00-tls13-strict-sni" instead of "00-tls13"! ###
       - { source: traefik_routing-conf-00-tls13, target: /etc/traefik/routing.d/00-tls13.yaml }
       - { source: traefik_routing-conf-10-custom, target: /etc/traefik/routing.d/10-custom.yaml }
     # LEGO Duck DNS integration:
