@@ -142,7 +142,7 @@ configs:
               - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
             sniStrict: true
             alpnProtocols: [h2, http/1.1]
-  traefik_routing-conf-00-tls13-sni-strict:
+  traefik_routing-conf-00-tls13-strict-sni:
     content: |
       tls: { options: { default: { minVersion: VersionTLS13, sniStrict: true, alpnProtocols: [h2, http/1.1] } } }
   traefik_routing-conf-00-tls13:
